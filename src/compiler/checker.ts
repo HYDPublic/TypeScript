@@ -21859,8 +21859,10 @@ namespace ts {
                         return +(<NumericLiteral>expr).text;
                     case SyntaxKind.ParenthesizedExpression:
                         return evaluate((<ParenthesizedExpression>expr).expression);
-                    case SyntaxKind.Identifier:
-                        return nodeIsMissing(expr) ? 0 : evaluateEnumMember(expr, getSymbolOfNode(member.parent), (<Identifier>expr).escapedText);
+                    case SyntaxKind.Identifier: {
+                        const id = expr as Identifier;
+                        return nodeIsMissing(expr) ? 0 : evaluateEnumMember(id, getSymbolOfNode(member.parent), id.escapedText);
+                    }
                     case SyntaxKind.ElementAccessExpression:
                     case SyntaxKind.PropertyAccessExpression:
                         const ex = <PropertyAccessExpression | ElementAccessExpression>expr;
@@ -21876,7 +21878,7 @@ namespace ts {
                                     Debug.assert(isLiteralExpression(argument));
                                     name = escapeLeadingUnderscores((argument as LiteralExpression).text);
                                 }
-                                return evaluateEnumMember(expr, type.symbol, name);
+                                return evaluateEnumMember(ex, type.symbol, name);
                             }
                         }
                         break;
@@ -21884,7 +21886,7 @@ namespace ts {
                 return undefined;
             }
 
-            function evaluateEnumMember(expr: Expression, enumSymbol: Symbol, name: __String) {
+            function evaluateEnumMember(expr: Identifier | ElementAccessExpression | PropertyAccessExpression, enumSymbol: Symbol, name: __String): string | number {
                 const memberSymbol = enumSymbol.exports.get(name);
                 if (memberSymbol) {
                     const declaration = memberSymbol.valueDeclaration;
@@ -21896,10 +21898,20 @@ namespace ts {
                         return 0;
                     }
                 }
+                else {
+                    const e = checkExpression(expr);
+                    if (e.flags & TypeFlags.Literal) {
+                        if (e.flags & TypeFlags.StringLiteral) {
+                            return (e as StringLiteralType).value;
+                        }
+                        //TODO: numberLiteral similarly
+                    }
+                }
                 return undefined;
             }
         }
 
+        //TODO: this is similar to isEntityNameExpression...
         function isConstantMemberAccess(node: Expression): boolean {
             return node.kind === SyntaxKind.Identifier ||
                 node.kind === SyntaxKind.PropertyAccessExpression && isConstantMemberAccess((<PropertyAccessExpression>node).expression) ||
